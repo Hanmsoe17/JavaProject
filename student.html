@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student QR Attendance</title>
+    <link rel = "stylesheet" href = "style.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body>
+
+  <div class="container">
+    <div class="card">
+      <h1 class="title">📷 Scan QR to Mark Attendance</h1>
+      <p class="subtitle">Hold your phone up to the QR code provided by your teacher.</p>
+
+      <div id="reader" class="scanner-box"></div>
+
+      <p id="result" class="result">Waiting for scan</p>
+    </div>
+  </div>
+
+
+ <script>
+  let scanCount = 0;
+  const maxScans = 2;
+  const scannedCodes = new Set();
+  const resultElement = document.getElementById("result");
+
+  function onScanSuccess(decodedText, decodedResult) {
+    if (scanCount >= maxScans) {
+      resultElement.innerText = "🚫 Scan limit reached. You can't scan more than twice.";
+      return;
+    }
+
+    if (scannedCodes.has(decodedText)) {
+      resultElement.innerText = "⚠️ This QR code has already been scanned.";
+      return;
+    }
+
+    scanCount++;
+    scannedCodes.add(decodedText);
+
+    const scanTime = new Date();
+    resultElement.innerText = `✅ Scanned: ${decodedText}\n`;
+    resultElement.innerText += `📦 Format: ${decodedResult.result.format}\n`;
+    resultElement.innerText += `🕒 Scan Time: ${scanTime.toLocaleString()}`;
+
+    const studentId = "student123";
+    fetch("https://your-server.com/attendance.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_id: studentId,
+        qr_code: decodedText,
+        timestamp: scanTime.toISOString()
+      })
+    })
+    .then(response => {
+      if (response.ok) {
+        resultElement.innerText += "\n Attendance submitted!";
+      } else {
+        resultElement.innerText += "\n Submission failed.";
+      }
+    })
+    .catch(error => {
+      console.error("Error:", error);
+      resultElement.innerText += "\n Something went wrong!";
+    });
+  }
+
+  const html5QrCode = new Html5Qrcode("reader");
+  Html5Qrcode.getCameras().then(cameras => {
+    if (cameras && cameras.length) {
+      html5QrCode.start(
+        cameras[0].id,
+        {
+          fps: 5,
+          qrbox: 250
+        },
+        onScanSuccess
+      );
+    } else {
+      resultElement.innerText = "No camera found.";
+    }
+  }).catch(err => {
+    console.error("Camera error:", err);
+    resultElement.innerText = "Unable to access camera.";
+  });
+</script>
+
+
+</body>
+</html>
+
