@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student QR Attendance</title>
+  <style>
+    body {
+    /*background-image: url('backgroundpic.jpg'); #cd6ddd;  Tailwind's bg-gray-100 */
+    background-size: cover;
+    background-color: rgb(141, 174, 212);
+    background-position: center;
+    background-attachment: fixed;
+
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+  }
+
+  .container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .card {
+    background-color: rgb(242, 244, 249);
+    padding: 24px;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(212, 234, 134, 0.1);
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+
+  }
+
+  .title {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #030f1f; /* Tailwind's text-gray-800 */
+    margin-bottom: 8px;
+  }
+
+  .subtitle {
+    font-size: 0.875rem;
+    color: #020d23; /* Tailwind's text-gray-500 */
+    margin-bottom: 16px;
+  }
+
+  .scanner-box {
+    width: 300px;
+    margin: 0 auto 16px auto;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .result {
+    color: #070e33; /* Tailwind's text-green-600 */
+    font-weight: 500;
+  }
+  </style>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+</head>
+<body>
+
+  <div class="container">
+    <div class="card">
+      <button id="switchBtn" class="mt-2 px-4 py-2  text-white rounded-lg">
+      🔄
+      </button>
+      <h1 class="title">📷 Scan QR to Mark Attendance</h1>
+      <p class="subtitle">Hold your phone up to the QR code provided by your teacher.</p>
+
+      <div id="reader" class="scanner-box"></div>
+
+      <p id="result" class="result">Waiting for scan</p>
+    </div>
+  </div>
+
+
+ <script>
+
+  let scanCount = 0;
+  const maxScans = 2;
+  const scannedCodes = new Set();
+  const resultElement = document.getElementById("result");
+
+  function onScanSuccess(decodedText, decodedResult) {
+    if (scanCount >= maxScans) {
+      resultElement.innerText = "🚫 Scan limit reached. You can't scan more than twice.";
+      return;
+    }
+
+    if (scannedCodes.has(decodedText)) {
+      resultElement.innerText = "⚠️ This QR code has already been scanned.";
+      return;
+    }
+
+    scanCount++;
+    scannedCodes.add(decodedText);
+
+    const scanTime = new Date();
+    resultElement.innerText = ` Scanned: ${decodedText}\n`;
+    resultElement.innerText += ` Format: ${decodedResult.result.format}\n`;
+    resultElement.innerText += ` Scan Time: ${scanTime.toLocaleString()}`;
+
+    /*const studentId = "student123";
+    const studentId = localStorage.getItem("student_id");*/
+
+    const studentId = prompt("Enter your student ID:");
+    if (!studentId) {
+      resultElement.innerText += "\n ❌ Student ID is required. Attendance not submitted.";
+      return;
+    }
+
+    fetch("http://localhost/attendance.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_id: studentId,
+        qr_code: decodedText,
+        timestamp: scanTime.toISOString()
+      })
+    })
+    .then(response => {
+      if (response.ok) {
+        resultElement.innerText += "\n Attendance submitted!";
+      } else {
+        resultElement.innerText += "\n Submission failed.";
+      }
+    })
+    .catch(error => {
+      console.error("Error:", error);
+      resultElement.innerText += "\n Something went wrong!";
+    });
+  }
+
+  const html5QrCode = new Html5Qrcode("reader");
+  Html5Qrcode.getCameras().then(cameras => {
+    if (cameras && cameras.length) {
+      html5QrCode.start(
+        cameras[0].id,
+        {
+          fps: 5,
+          qrbox: 250
+        },
+        onScanSuccess
+      );
+    } else {
+      resultElement.innerText = "No camera found.";
+    }
+  }).catch(err => {
+    console.error("Camera error:", err);
+    resultElement.innerText = "Unable to access camera.";
+  });
+</script>
+
+
+</body>
+</html>
+
