@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Profile - React Version</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    // React component for the navigation bar
+    function NavBar({ activeSection, setActiveSection }) {
+      const menuItems = [
+        { id: 'profile', label: 'Profile' },
+        { id: 'scan', label: 'Scan' },
+        { id: 'attendance', label: 'Attendance' },
+        { id: 'assignment', label: 'Assignment' },
+        { id: 'grade', label: 'Grade' }
+      ];
+
+      return (
+        <div className="navbar">
+          <h1>Student Portal</h1>
+          <div className="menu">
+            {menuItems.map(item => (
+              <div
+                key={item.id}
+                className={activeSection === item.id ? 'active' : ''}
+                onClick={() => setActiveSection(item.id)}
+              >
+                {item.label}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // React component for the profile section
+    function ProfileSection() {
+      return (
+        <div className="profile-section content active">
+          <div className="profile-header">
+            <img src="https://i.pravatar.cc/100" alt="Profile Picture" />
+            <h2>John Doe</h2>
+            <p>ID: STU12345</p>
+          </div>
+          <div className="profile-details">
+            <p><strong>Email:</strong> johndoe@gmail.com</p>
+            <p><strong>Address:</strong> 123 Main Street, City, Country</p>
+          </div>
+        </div>
+      );
+    }
+
+    // React component for the QR scanner
+    function ScanSection() {
+      const [scanCount, setScanCount] = React.useState(0);
+      const [scannedCodes, setScannedCodes] = React.useState(new Set());
+      const [result, setResult] = React.useState("Waiting for scan...");
+      const [cameras, setCameras] = React.useState([]);
+      const [currentCameraId, setCurrentCameraId] = React.useState(null);
+      const scannerRef = React.useRef(null);
+
+      React.useEffect(() => {
+        // Initialize cameras
+        Html5Qrcode.getCameras().then(devices => {
+          if (devices && devices.length) {
+            setCameras(devices);
+            setCurrentCameraId(devices[0].id);
+          } else {
+            setResult("No cameras found. Please connect a camera.");
+          }
+        }).catch(err => {
+          console.error("Camera access error:", err);
+          setResult("Cannot access camera. Please check permissions.");
+        });
+
+        return () => {
+          // Clean up scanner when component unmounts
+          if (scannerRef.current && scannerRef.current.isScanning) {
+            scannerRef.current.stop().catch(err => console.error("Failed to stop scanner", err));
+          }
+        };
+      }, []);
+
+      React.useEffect(() => {
+        if (currentCameraId) {
+          startScanner();
+        }
+      }, [currentCameraId]);
+
+      const startScanner = () => {
+        if (scannerRef.current && scannerRef.current.isScanning) {
+          scannerRef.current.stop().catch(err => console.error("Failed to stop scanner", err));
+        }
+
+        scannerRef.current = new Html5Qrcode("reader");
+        scannerRef.current.start(
+          currentCameraId,
+          {
+            fps: 10,
+            qrbox: 250,
+            aspectRatio: 1.0
+          },
+          onScanSuccess,
+          onScanError
+        ).catch(err => {
+          console.error("Scanner start error:", err);
+          setResult("Unable to start scanner. Please check camera permissions.");
+        });
+      };
+
+      const switchCamera = () => {
+        if (cameras.length < 2) {
+          setResult("Only one camera available");
+          return;
+        }
+        
+        const newCameraIndex = cameras.findIndex(cam => cam.id === currentCameraId) + 1;
+        setCurrentCameraId(cameras[newCameraIndex % cameras.length].id);
+      };
+
+      const onScanSuccess = (decodedText, decodedResult) => {
+        if (scanCount >= 2) {
+          setResult("🚫 Scan limit reached. You can't scan more than twice.");
+          return;
+        }
+
+        if (scannedCodes.has(decodedText)) {
+          setResult("⚠️ This QR code has already been scanned.");
+          return;
+        }
+
+        setScanCount(prev => prev + 1);
+        setScannedCodes(prev => new Set([...prev, decodedText]));
+
+        const scanTime = new Date();
+        setResult(`
+          <strong>Scanned:</strong> ${decodedText}<br>
+          <strong>Format:</strong> ${decodedResult.result.format}<br>
+          <strong>Scan Time:</strong> ${scanTime.toLocaleString()}
+        `);
+
+        const studentId = prompt("Enter your student ID:");
+        if (!studentId) {
+          setResult(prev => prev + "<br><span style='color:red'>❌ Student ID is required. Attendance not submitted.</span>");
+          return;
+        }
+
+        // Simulate API call
+        setTimeout(() => {
+          setResult(prev => prev + "<br><span style='color:green'>✅ Attendance submitted successfully!</span>");
+        }, 1000);
+      };
+
+      const onScanError = (error) => {
+        console.log("Scan error:", error);
+      };
+
+      return (
+        <div id="scan" className="content">
+          <div className="scan-container">
+            <div className="scan-card">
+              <button onClick={switchCamera} className="mt-2 px-4 py-2 text-black rounded-lg">
+                🔄 Switch Camera
+              </button>
+              <h1 className="title">📷 Scan QR to Mark Attendance</h1>
+              <p className="subtitle">Hold your phone up to the QR code provided by your teacher.</p>
+
+              <div id="reader" className="scanner-box"></div>
+
+              <p id="result" className="result" dangerouslySetInnerHTML={{ __html: result }}></p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // React component for attendance section
+    function AttendanceSection() {
+      const [attendanceData, setAttendanceData] = React.useState({
+        subjects: [
+          { name: "Mathematics", attended: 17, total: 20 },
+          { name: "Physics", attended: 18, total: 20 },
+          { name: "Chemistry", attended: 14, total: 18 },
+          { name: "Biology", attended: 22, total: 24 },
+          { name: "English", attended: 16, total: 18 },
+          { name: "Computer Science", attended: 19, total: 20 }
+        ]
+      });
+
+      // Calculate overall attendance
+      const totalAttended = attendanceData.subjects.reduce((sum, subject) => sum + subject.attended, 0);
+      const totalClasses = attendanceData.subjects.reduce((sum, subject) => sum + subject.total, 0);
+      const overallPercentage = Math.round((totalAttended / totalClasses) * 100);
+
+      return (
+        <div id="attendance" className="content">
+          <h2 className="text-2xl font-bold mb-6 text-center">Attendance Summary</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {attendanceData.subjects.map(subject => {
+              const percentage = Math.round((subject.attended / subject.total) * 100);
+              return (
+                <div key={subject.name} className="bg-white p-4 rounded-lg shadow">
+                  <h3 className="font-semibold text-lg">{subject.name}</h3>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+                    <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${percentage}%` }}></div>
+                  </div>
+                  <p className="mt-1 text-sm">{percentage}% ({subject.attended}/{subject.total} classes)</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 bg-white p-4 rounded-lg shadow">
+            <h3 className="font-semibold text-lg">Overall Attendance</h3>
+            <div className="w-full bg-gray-200 rounded-full h-3 mt-2">
+              <div className="bg-green-600 h-3 rounded-full" style={{ width: `${overallPercentage}%` }}></div>
+            </div>
+            <p className="mt-1">{overallPercentage}% ({totalAttended}/{totalClasses} classes)</p>
+          </div>
+        </div>
+      );
+    }
+
+    // React component for assignments section
+    function AssignmentSection() {
+      const [assignmentData, setAssignmentData] = React.useState({
+        subjects: [
+          { 
+            name: "Mathematics", 
+            assignments: [
+              { title: "Algebra Homework", dueDate: "2023-11-15", submitted: false },
+              { title: "Calculus Problems", dueDate: "2023-11-22", submitted: false }
+            ]
+          },
+          { 
+            name: "Physics", 
+            assignments: [
+              { title: "Newton's Laws Report", dueDate: "2023-11-17", submitted: false }
+            ]
+          },
+          { 
+            name: "Chemistry", 
+            assignments: [
+              { title: "Periodic Table Quiz", dueDate: "2023-11-14", submitted: false }
+            ]
+          },
+          { 
+            name: "Biology", 
+            assignments: [
+              { title: "Cell Structure Diagram", dueDate: "2023-11-20", submitted: false }
+            ]
+          },
+          { 
+            name: "English", 
+            assignments: [
+              { title: "Book Report", dueDate: "2023-11-25", submitted: false }
+            ]
+          },
+          { 
+            name: "Computer Science", 
+            assignments: [
+              { title: "HTML/CSS Project", dueDate: "2023-11-30", submitted: false }
+            ]
+          }
+        ]
+      });
+
+      const [showModal, setShowModal] = React.useState(false);
+      const [currentAssignment, setCurrentAssignment] = React.useState({ subject: '', assignment: '' });
+
+      const handleUploadClick = (subject, assignment) => {
+        setCurrentAssignment({ subject, assignment });
+        setShowModal(true);
+      };
+
+      const handleConfirmUpload = () => {
+        // Update the assignment data to mark as submitted
+        const updatedData = { ...assignmentData };
+        const subjectIndex = updatedData.subjects.findIndex(s => s.name === currentAssignment.subject);
+        if (subjectIndex !== -1) {
+          const assignmentIndex = updatedData.subjects[subjectIndex].assignments.findIndex(
+            a => a.title === currentAssignment.assignment
+          );
+          if (assignmentIndex !== -1) {
+            updatedData.subjects[subjectIndex].assignments[assignmentIndex].submitted = true;
+            setAssignmentData(updatedData);
+          }
+        }
+        
+        setShowModal(false);
+        alert('Assignment submitted successfully!');
+      };
+
+      return (
+        <div id="assignment" className="content">
+          <h2 className="text-2xl font-bold mb-6 text-center">Assignments</h2>
+          
+          <div className="space-y-4 mb-8">
+            {assignmentData.subjects.map(subject => (
+              <div key={subject.name} className="bg-white p-4 rounded-lg shadow">
+                <h3 className="font-semibold text-lg mb-2">{subject.name}</h3>
+                <ul className="space-y-2">
+                  {subject.assignments.map(assignment => (
+                    <li key={assignment.title} className="flex justify-between items-center border-b pb-2">
+                      <div>
+                        <span>{assignment.title}</span>
+                        <span className="block text-sm text-gray-600">Due: {assignment.dueDate}</span>
+                      </div>
+                      {assignment.submitted ? (
+                        <span className="text-green-600 text-sm">Submitted</span>
+                      ) : (
+                        <button 
+                          className="upload-btn px-3 py-1 bg-blue-500 text-white rounded"
+                          onClick={() => handleUploadClick(subject.name, assignment.title)}
+                        >
+                          Upload
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+
+          {/* Upload Modal */}
+          {showModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+              <div className="bg-white p-6 rounded-lg max-w-md w-full">
+                <h3 className="text-xl font-bold mb-4">Upload Assignment</h3>
+                <p className="mb-2">{currentAssignment.subject}: {currentAssignment.assignment}</p>
+                <input type="file" className="mb-4 w-full" />
+                <div className="flex justify-end space-x-2">
+                  <button 
+                    className="px-4 py-2 bg-gray-300 rounded"
+                    onClick={() => setShowModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    className="px-4 py-2 bg-blue-500 text-white rounded"
+                    onClick={handleConfirmUpload}
+                  >
+                    Upload
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // React component for grades section
+    function GradeSection() {
+      const [gradesData, setGradesData] = React.useState({
+        subjects: [
+          { 
+            name: "English",
+            assignments: "A-",
+            exams: "B+",
+            overall: "B+"
+          },
+          { 
+            name: "Discrete",
+            assignments: "A",
+            exams: "A-",
+            overall: "A-"
+          },
+          { 
+            name: "Java",
+            assignments: "B+",
+            exams: "A-",
+            overall: "B+"
+          },
+          { 
+            name: "Database",
+            assignments: "A",
+            exams: "A",
+            overall: "A"
+          },
+          { 
+            name: "Networking",
+            assignments: "A-",
+            exams: "B+",
+            overall: "A-"
+          },
+          { 
+            name: "HCI",
+            assignments: "A",
+            exams: "A",
+            overall: "A"
+          }
+        ]
+      });
+
+      const getGradeColor = (grade) => {
+        if (grade.includes('A')) return 'bg-green-500';
+        if (grade.includes('B')) return 'bg-blue-500';
+        if (grade.includes('C')) return 'bg-yellow-500';
+        return 'bg-red-500';
+      };
+
+      return (
+        <div id="grade" className="content">
+          <h2 className="text-2xl font-bold mb-6 text-center">Grades</h2>
+          
+          <div className="overflow-x-auto">
+            <table className="min-w-full bg-white rounded-lg overflow-hidden">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="py-3 px-4 text-left">Subject</th>
+                  <th className="py-3 px-4 text-left">Current Grade</th>
+                  <th className="py-3 px-4 text-left">Assignments</th>
+                  <th className="py-3 px-4 text-left">Exams</th>
+                  <th className="py-3 px-4 text-left">Overall</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gradesData.subjects.map(subject => (
+                  <tr key={subject.name} className="border-b hover:bg-gray-50">
+                    <td className="py-3 px-4">{subject.name}</td>
+                    <td className="py-3 px-4">
+                      <span className={`inline-block w-8 h-8 flex items-center justify-center rounded-full 
+                      ${getGradeColor(subject.overall)} text-white font-bold`}>
+                        {subject.overall}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">{subject.assignments}</td>
+                    <td className="py-3 px-4">{subject.exams}</td>
+                    <td className="py-3 px-4 font-semibold">{subject.overall}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-6 bg-white p-4 rounded-lg shadow">
+            <h3 className="font-semibold text-lg mb-2">Term GPA</h3>
+            <div className="flex items-center">
+              <div className="text-3xl font-bold text-blue-600 mr-4">3.75</div>
+              <div className="w-full bg-gray-200 rounded-full h-4">
+                <div className="bg-blue-600 h-4 rounded-full" style={{ width: '85%' }}></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Main App component
+    function App() {
+      const [activeSection, setActiveSection] = React.useState('profile');
+
+      return (
+        <div>
+          <NavBar activeSection={activeSection} setActiveSection={setActiveSection} />
+          
+          {activeSection === 'profile' && <ProfileSection />}
+          {activeSection === 'scan' && <ScanSection />}
+          {activeSection === 'attendance' && <AttendanceSection />}
+          {activeSection === 'assignment' && <AssignmentSection />}
+          {activeSection === 'grade' && <GradeSection />}
+        </div>
+      );
+    }
+
+    // Render the app
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+
+  <style>
+    /* ===== General Reset ===== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    body {
+      background: #f5f7fb;
+      color: #333;
+    }
+
+    /* ===== NAVIGATION BAR ===== */
+    .navbar {
+      background: linear-gradient(90deg, #6a11cb, #2575fc);
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: white;
+    }
+
+    .navbar h1 {
+      font-size: 20px;
+    }
+
+    .menu {
+      display: flex;
+      gap: 20px;
+    }
+
+    .menu div {
+      cursor: pointer;
+      padding: 8px 15px;
+      border-radius: 6px;
+      transition: 0.3s;
+    }
+
+    .menu div:hover,
+    .menu div.active {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* ===== PROFILE SECTION ===== */
+    .profile-section {
+      max-width: 600px;
+      margin: 30px auto;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    .profile-header {
+      text-align: center;
+    }
+
+    .profile-header img {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      margin-bottom: 10px;
+    }
+
+    .profile-header h2 {
+      margin-bottom: 5px;
+    }
+
+    .profile-details {
+      margin-top: 20px;
+    }
+
+    .profile-details p {
+      margin: 10px 0;
+      font-size: 16px;
+    }
+
+    /* ===== CONTENT SECTIONS ===== */
+    .content {
+      max-width: 800px;
+      margin: 20px auto;
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    /* ===== SCAN PAGE STYLES ===== */
+    .scan-container {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .scan-card {
+      background-color: rgb(242, 244, 249);
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(212, 234, 134, 0.1);
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .title {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #030f1f;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: 0.875rem;
+      color: #020d23;
+      margin-bottom: 16px;
+    }
+
+    .scanner-box {
+      width: 300px;
+      height: 300px;
+      margin: 0 auto 16px auto;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 2px solid #ddd;
+    }
+
+    .result {
+      color: #070e33;
+      font-weight: 500;
+      margin-top: 10px;
+      min-height: 60px;
+    }
+
+    body {
+      background-color: rgb(141, 174, 212);
+      background-position: center;
+      background-attachment: fixed;
+      min-height: 100vh;
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+    }
+  </style>
+</body>
+</html>
